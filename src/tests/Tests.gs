@@ -493,4 +493,45 @@ function registerTests_() {
     assertThrows_(function() { verifyCsrfToken(flipped); },
         'tampered signature must fail MAC check');
   });
+
+  // ---------- Diagnostics: forceReset guard rails ----------
+  //
+  // All four tests here call forceReset() with a WRONG confirmation,
+  // so the throw fires before any destructive branch runs. Never add a
+  // test here that passes the real FORCE_RESET_CONFIRMATION — it would
+  // wipe the production trigger + checkpoint state on every runAllTests.
+
+  test_('FORCE_RESET_CONFIRMATION is a long distinctive constant', function() {
+    assertEqual_(typeof FORCE_RESET_CONFIRMATION, 'string');
+    assertTrue_(FORCE_RESET_CONFIRMATION.length >= 30,
+        'confirmation must be long enough to be deliberate');
+    assertTrue_(FORCE_RESET_CONFIRMATION.indexOf(' ') < 0,
+        'confirmation must not contain spaces');
+  });
+
+  test_('forceReset refuses call without confirmation', function() {
+    assertThrows_(function() { forceReset(); },
+        'forceReset must throw without any argument');
+  });
+
+  test_('forceReset refuses wrong confirmation strings', function() {
+    var wrongs = ['', 'yes', 'YES', 'reset', 'confirm',
+        'yes_i_understand_this_wipes_everything', // lower-case variant
+        FORCE_RESET_CONFIRMATION + 'x',           // near-miss suffix
+        'x' + FORCE_RESET_CONFIRMATION];          // near-miss prefix
+    for (var i = 0; i < wrongs.length; i++) {
+      var v = wrongs[i];
+      assertThrows_(function() { forceReset(v); },
+          'expected reject for ' + JSON.stringify(v));
+    }
+  });
+
+  test_('forceReset refuses non-string confirmation types', function() {
+    var wrongs = [true, false, 1, 0, null, undefined, {}, []];
+    for (var i = 0; i < wrongs.length; i++) {
+      var v = wrongs[i];
+      assertThrows_(function() { forceReset(v); },
+          'expected reject for ' + JSON.stringify(v));
+    }
+  });
 }
