@@ -1,0 +1,3 @@
+# Reserved for v2.0 Eviction Engine modules (Phase 1.E): JobQueue.gs,
+# EvictionEngine.gs, FolderTree.gs, ManifestGenerator.gs, and the
+# strategies/ subfolder. See CLAUDE.md § Vault Migration.

@@ -20,7 +20,7 @@
  */
 function doGet(e) {
   initializeDefaults();
-  const tpl = HtmlService.createTemplateFromFile('Index');
+  const tpl = HtmlService.createTemplateFromFile('ui/Index');
   return tpl.evaluate()
       .setTitle('cPanel Drive Archiver')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);

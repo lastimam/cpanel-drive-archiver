@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&family=Roboto+Mono:wght@400&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <?!= include('Stylesheet'); ?>
+  <?!= include('ui/Stylesheet'); ?>
 </head>
 <body>
   <div class="app-shell">
@@ -40,13 +40,13 @@
 
     <main class="app-main">
       <section id="dashboard-panel" class="panel active" role="tabpanel">
-        <?!= include('Dashboard'); ?>
+        <?!= include('ui/Dashboard'); ?>
       </section>
       <section id="settings-panel" class="panel" role="tabpanel">
-        <?!= include('Settings'); ?>
+        <?!= include('ui/Settings'); ?>
       </section>
       <section id="queue-panel" class="panel" role="tabpanel">
-        <?!= include('ManualQueue'); ?>
+        <?!= include('ui/ManualQueue'); ?>
       </section>
     </main>
 
@@ -57,6 +57,6 @@
     <div id="snackbar" class="snackbar" hidden role="status"></div>
   </div>
 
-  <?!= include('Scripts'); ?>
+  <?!= include('ui/Scripts'); ?>
 </body>
 </html>

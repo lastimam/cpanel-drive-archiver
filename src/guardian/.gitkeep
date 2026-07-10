@@ -1,0 +1,3 @@
+# Reserved for v2.0 Guardian Mode modules (Phase 1.D of the upgrade
+# roadmap): GuardianMode.gs, TrashMonitor.gs, AutoRestore.gs,
+# EmergencyFreeze.gs, AuditLog.gs. See CLAUDE.md § Guardian Mode.

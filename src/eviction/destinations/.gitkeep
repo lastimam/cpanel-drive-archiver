@@ -1,0 +1,2 @@
+# Reserved for v2.0 Eviction Destinations: LocalDownload.gs, FTPClient.gs,
+# S3Client.gs, MetadataOnly.gs. See CLAUDE.md § Eviction Destinations.
