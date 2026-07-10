@@ -311,4 +311,113 @@ function registerTests_() {
     PropertiesService.getScriptProperties()
         .setProperty(PROP_KEYS.FILE_TYPE_FILTER, '*');
   });
+
+  // ---------- retryWithBackoff: MAX_RETRIES config activation ----------
+
+  test_('retryWithBackoff falls back to config MAX_RETRIES', function() {
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(PROP_KEYS.MAX_RETRIES, '2');
+    try {
+      var attempts = 0;
+      assertThrows_(function() {
+        retryWithBackoff(function() {
+          attempts++;
+          throw new Error('always');
+        }, { baseDelayMs: 1, maxDelayMs: 5 });
+      });
+      // initial + 2 retries from config = 3 attempts
+      assertEqual_(attempts, 3);
+    } finally {
+      props.setProperty(PROP_KEYS.MAX_RETRIES, '3');
+    }
+  });
+
+  test_('retryWithBackoff prefers explicit maxRetries over config', function() {
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(PROP_KEYS.MAX_RETRIES, '5');
+    try {
+      var attempts = 0;
+      assertThrows_(function() {
+        retryWithBackoff(function() {
+          attempts++;
+          throw new Error('always');
+        }, { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 5 });
+      });
+      // initial + 1 retry (explicit) = 2 attempts, ignoring config's 5
+      assertEqual_(attempts, 2);
+    } finally {
+      props.setProperty(PROP_KEYS.MAX_RETRIES, '3');
+    }
+  });
+
+  test_('retryWithBackoff falls back to 3 when MAX_RETRIES invalid', function() {
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(PROP_KEYS.MAX_RETRIES, 'not-a-number');
+    try {
+      var attempts = 0;
+      assertThrows_(function() {
+        retryWithBackoff(function() {
+          attempts++;
+          throw new Error('always');
+        }, { baseDelayMs: 1, maxDelayMs: 5 });
+      });
+      // initial + 3 (safe default) = 4 attempts
+      assertEqual_(attempts, 4);
+    } finally {
+      props.setProperty(PROP_KEYS.MAX_RETRIES, '3');
+    }
+  });
+
+  // ---------- BandwidthBudget ----------
+
+  test_('BandwidthBudget: fresh budget is empty', function() {
+    var b = new BandwidthBudget(1); // 1 MB
+    assertEqual_(b.consumedBytes(), 0);
+    assertEqual_(b.limitBytes(), 1024 * 1024);
+    assertTrue_(!b.isExhausted());
+  });
+
+  test_('BandwidthBudget.consume accumulates positive bytes', function() {
+    var b = new BandwidthBudget(1);
+    b.consume(500 * 1024);
+    b.consume(200 * 1024);
+    assertEqual_(b.consumedBytes(), 700 * 1024);
+    assertEqual_(b.remainingBytes(), 1024 * 1024 - 700 * 1024);
+  });
+
+  test_('BandwidthBudget.consume ignores non-positive / non-finite', function() {
+    var b = new BandwidthBudget(1);
+    b.consume(-100);
+    b.consume(0);
+    b.consume(NaN);
+    b.consume(Infinity);
+    b.consume('not a number');
+    assertEqual_(b.consumedBytes(), 0);
+  });
+
+  test_('BandwidthBudget.isExhausted flips after crossing limit', function() {
+    var b = new BandwidthBudget(1);
+    b.consume(1024 * 1024 - 1);
+    assertTrue_(!b.isExhausted());
+    b.consume(1);
+    assertTrue_(b.isExhausted());
+  });
+
+  test_('BandwidthBudget.hasCapacityFor is accurate', function() {
+    var b = new BandwidthBudget(1); // 1 MB
+    b.consume(500 * 1024);
+    assertTrue_(b.hasCapacityFor(500 * 1024));
+    assertTrue_(!b.hasCapacityFor(600 * 1024));
+  });
+
+  test_('BandwidthBudget reads config when limitMb omitted', function() {
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(PROP_KEYS.BANDWIDTH_LIMIT_MB, '2');
+    try {
+      var b = new BandwidthBudget();
+      assertEqual_(b.limitBytes(), 2 * 1024 * 1024);
+    } finally {
+      props.setProperty(PROP_KEYS.BANDWIDTH_LIMIT_MB, '500');
+    }
+  });
 }

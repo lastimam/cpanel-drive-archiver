@@ -239,6 +239,21 @@ function constantTimeEquals_(a, b) {
 // ============================================================
 
 /**
+ * Resolve the retry budget from user configuration, falling back to 3
+ * when the value is missing, non-numeric, or out of the sensible range
+ * (1..10). Used by retryWithBackoff() when the caller doesn't specify
+ * maxRetries explicitly. Kept private — callers pass the number in as
+ * an opts field rather than reading config themselves.
+ * @return {number}
+ * @private
+ */
+function getConfiguredMaxRetries_() {
+  const raw = getConfig(PROP_KEYS.MAX_RETRIES);
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 1 && n <= 10 ? n : 3;
+}
+
+/**
  * Execute fn with retry and exponential backoff.
  * Delay sequence: base, 2×base, 4×base, … capped at maxDelayMs.
  * @param {function(): T} fn Operation to attempt.
@@ -248,14 +263,17 @@ function constantTimeEquals_(a, b) {
  *   maxDelayMs?: number,
  *   onRetry?: function(number, !Error): void,
  *   shouldRetry?: function(!Error): boolean
- * }} [opts]
+ * }} [opts] If maxRetries is omitted, the value of
+ *     PROP_KEYS.MAX_RETRIES from ScriptProperties is used (default 3).
  * @return {T}
  * @template T
  * @throws {Error} The last error if all retries are exhausted.
  */
 function retryWithBackoff(fn, opts) {
   const o = opts || {};
-  const maxRetries = o.maxRetries != null ? o.maxRetries : 3;
+  const maxRetries = o.maxRetries != null
+      ? o.maxRetries
+      : getConfiguredMaxRetries_();
   const base = o.baseDelayMs || LIMITS.RETRY_BASE_DELAY_MS;
   const max  = o.maxDelayMs  || LIMITS.RETRY_MAX_DELAY_MS;
   let lastErr = null;
@@ -314,6 +332,67 @@ class TimeBudget {
    * @return {boolean} True if it fits in remaining budget.
    */
   hasTimeFor(estimatedMs) { return this.remaining() >= estimatedMs; }
+}
+
+/**
+ * Per-session bandwidth cap. Tracks bytes downloaded from cPanel and
+ * lets the orchestrator pause the session before overwhelming the
+ * source server. Mirrors the shape of TimeBudget for symmetry.
+ *
+ * Unlike TimeBudget, hitting the bandwidth cap does NOT schedule an
+ * immediate resume — the orchestrator marks the session PAUSED and
+ * relies on the next scheduled trigger to continue. Immediate resume
+ * would just hit the same cap again.
+ *
+ * The limit is read from PROP_KEYS.BANDWIDTH_LIMIT_MB at construction
+ * time (default 500 MB). Skipped duplicates never consume the budget
+ * because they don't download; only successful upload paths do.
+ */
+class BandwidthBudget {
+  /**
+   * @param {number} [limitMb] Explicit override in megabytes (testing).
+   *     If omitted, reads PROP_KEYS.BANDWIDTH_LIMIT_MB from config.
+   */
+  constructor(limitMb) {
+    const configured = limitMb != null
+        ? limitMb
+        : parseInt(getConfig(PROP_KEYS.BANDWIDTH_LIMIT_MB), 10);
+    /** @private @const */ this.limitBytes_ =
+        Number.isFinite(configured) && configured > 0
+            ? configured * 1024 * 1024
+            : 500 * 1024 * 1024;
+    /** @private */ this.consumedBytes_ = 0;
+  }
+
+  /**
+   * Record bytes downloaded. Non-positive / non-finite values are
+   * silently ignored so callers don't need to pre-validate.
+   * @param {number} bytes
+   */
+  consume(bytes) {
+    const n = Number(bytes);
+    if (Number.isFinite(n) && n > 0) this.consumedBytes_ += n;
+  }
+
+  /** @return {number} */
+  consumedBytes() { return this.consumedBytes_; }
+
+  /** @return {number} */
+  limitBytes() { return this.limitBytes_; }
+
+  /** @return {number} May be negative once the cap is crossed. */
+  remainingBytes() { return this.limitBytes_ - this.consumedBytes_; }
+
+  /** @return {boolean} True once we've crossed the configured cap. */
+  isExhausted() { return this.consumedBytes_ >= this.limitBytes_; }
+
+  /**
+   * @param {number} bytes Expected size of the next transfer.
+   * @return {boolean} True if it fits in the remaining budget.
+   */
+  hasCapacityFor(bytes) {
+    return this.remainingBytes() >= Number(bytes);
+  }
 }
 
 // ============================================================

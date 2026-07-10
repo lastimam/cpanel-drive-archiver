@@ -34,6 +34,7 @@ class ArchiveOrchestrator {
     /** @private */ this.dedup_            = null;
     /** @private */ this.logger_           = null;
     /** @private */ this.budget_           = null;
+    /** @private */ this.bandwidth_        = null;
     /** @private */ this.stats_            = null;
     /** @private */ this.consecutiveFails_ = 0;
   }
@@ -71,6 +72,7 @@ class ArchiveOrchestrator {
 
     // 2) تهيئة الوحدات
     this.budget_    = new TimeBudget();
+    this.bandwidth_ = new BandwidthBudget();
     this.connector_ = createCpanelConnector();
     this.archiver_  = new DriveArchiver();
     this.dedup_     = new Deduplicator();
@@ -145,11 +147,12 @@ class ArchiveOrchestrator {
       toProcess: filtered.length - startIdx,
     });
 
-    // C) حلقة المعالجة مع مراقبة الوقت والـ circuit breaker
+    // C) حلقة المعالجة مع مراقبة الوقت، النطاق، والـ circuit breaker
     let lastPath = null;
     let reason = null;
     for (let i = startIdx; i < filtered.length; i++) {
-      if (this.budget_.isExhausted()) { reason = 'TIME_LIMIT'; break; }
+      if (this.budget_.isExhausted())     { reason = 'TIME_LIMIT'; break; }
+      if (this.bandwidth_.isExhausted())  { reason = 'BANDWIDTH_LIMIT'; break; }
       if (this.consecutiveFails_ >= LIMITS.MAX_CONSECUTIVE_FAILS) {
         reason = 'CIRCUIT_BREAKER'; break;
       }
@@ -171,6 +174,35 @@ class ArchiveOrchestrator {
       return {
         status: 'PAUSED_TIME',
         stats: this.stats_,
+        lastPath: lastPath,
+      };
+    }
+
+    if (reason === 'BANDWIDTH_LIMIT') {
+      // Save progress but do NOT scheduleImmediateResume — an immediate
+      // resume would just re-hit the same cap. The next time-driven
+      // trigger picks up naturally with a fresh budget.
+      if (lastPath) {
+        saveCheckpoint({
+          sessionId: this.sessionId_,
+          lastProcessedPath: lastPath,
+          stats: this.stats_,
+          consecutiveFails: this.consecutiveFails_,
+        });
+      }
+      setConfig(PROP_KEYS.ARCHIVE_STATUS, ARCHIVE_STATUS.PAUSED);
+      const consumedMb = Math.round(
+          this.bandwidth_.consumedBytes() / 1024 / 1024);
+      const limitMb = Math.round(
+          this.bandwidth_.limitBytes() / 1024 / 1024);
+      logWarn('[Orch] bandwidth cap reached', {
+        consumedMb: consumedMb, limitMb: limitMb, lastPath: lastPath,
+      });
+      return {
+        status: 'PAUSED_BANDWIDTH',
+        stats: this.stats_,
+        consumedMb: consumedMb,
+        limitMb: limitMb,
         lastPath: lastPath,
       };
     }
@@ -311,6 +343,10 @@ class ArchiveOrchestrator {
       if (status === FILE_STATUS.VERSIONED) this.stats_.versioned++;
       else this.stats_.success++;
       this.stats_.totalBytes += Number(cksum.size) || 0;
+      // Count against the per-session bandwidth cap. Duplicates are
+      // never counted because they don't hit cPanel — they short-circuit
+      // above at SKIPPED_DUPLICATE.
+      if (this.bandwidth_) this.bandwidth_.consume(cksum.size);
       this.consecutiveFails_ = 0;
 
     } catch (err) {
