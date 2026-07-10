@@ -21,6 +21,10 @@
 function doGet(e) {
   initializeDefaults();
   const tpl = HtmlService.createTemplateFromFile('ui/Index');
+  // Mint a CSRF token bound to the current user and inject it into the
+  // template. The SPA echoes it back on every state-changing call so
+  // the server can bind requests to this specific page load.
+  tpl.csrfToken = generateCsrfToken();
   return tpl.evaluate()
       .setTitle('cPanel Drive Archiver')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
@@ -48,6 +52,24 @@ function assertAuthorized_() {
   if (!email) throw new Error('Unauthorized: no effective user');
 }
 
+/**
+ * Verify a CSRF token supplied by the SPA. Wraps verifyCsrfToken() to
+ * surface a stable client-facing message instead of leaking the
+ * specific reason (expired vs. malformed vs. signature mismatch). Any
+ * ui* handler that mutates state calls this immediately after
+ * assertAuthorized_().
+ * @param {string} token
+ * @private
+ */
+function _requireCsrf_(token) {
+  try {
+    verifyCsrfToken(token);
+  } catch (e) {
+    console.warn('[Main] CSRF check failed: ' + e.message);
+    throw new Error('CSRF verification failed');
+  }
+}
+
 // ============================================================
 // 2) UI API — configuration
 // ============================================================
@@ -64,11 +86,13 @@ function uiGetConfig() {
 /**
  * Save a batch of configuration updates and return the validation result.
  * Normalises certain fields (e.g. extracts Drive folder ID from a URL).
+ * @param {string} token CSRF token from the SPA meta tag.
  * @param {!Object<string, string>} updates
  * @return {{ok: boolean, missing: !Array<string>}}
  */
-function uiSaveConfig(updates) {
+function uiSaveConfig(token, updates) {
   assertAuthorized_();
+  _requireCsrf_(token);
   const clean = normalizeConfigUpdates_(updates || {});
   updateConfig(clean);
   return validateConfig();
@@ -103,19 +127,23 @@ function normalizeConfigUpdates_(updates) {
 
 /**
  * Ping the PHP bridge to verify URL + secret + allowed root.
+ * @param {string} token CSRF token from the SPA meta tag.
  * @return {!Object}
  */
-function uiTestConnection() {
+function uiTestConnection(token) {
   assertAuthorized_();
+  _requireCsrf_(token);
   return testCpanelConnection();
 }
 
 /**
  * Send a one-shot test email to NOTIFICATION_EMAIL.
+ * @param {string} token CSRF token from the SPA meta tag.
  * @return {!Object}
  */
-function uiTestEmail() {
+function uiTestEmail(token) {
   assertAuthorized_();
+  _requireCsrf_(token);
   return new Notifier().sendTestEmail();
 }
 
@@ -126,18 +154,25 @@ function uiTestEmail() {
 /**
  * Install (or reinstall) the main archive trigger + notification triggers
  * according to the current schedule config.
+ * @param {string} token CSRF token from the SPA meta tag.
  * @return {{ok: boolean}}
  */
-function uiInstallSchedule() {
+function uiInstallSchedule(token) {
   assertAuthorized_();
+  _requireCsrf_(token);
   installSchedule();
   installNotificationTriggers();
   return { ok: true };
 }
 
-/** Delete all installed triggers. @return {{ok: boolean}} */
-function uiRemoveAllTriggers() {
+/**
+ * Delete all installed triggers.
+ * @param {string} token CSRF token from the SPA meta tag.
+ * @return {{ok: boolean}}
+ */
+function uiRemoveAllTriggers(token) {
   assertAuthorized_();
+  _requireCsrf_(token);
   removeAllTriggers();
   return { ok: true };
 }
@@ -209,11 +244,13 @@ function uiGetPendingManual() {
  * Queue the provided paths (or ALL pending-manual entries if empty) for
  * retry in the next archive session. Kick off a one-shot trigger to run
  * that session immediately.
+ * @param {string} token CSRF token from the SPA meta tag.
  * @param {!Array<string>} paths
  * @return {{queued: number}}
  */
-function uiRetryPending(paths) {
+function uiRetryPending(token, paths) {
   assertAuthorized_();
+  _requireCsrf_(token);
   const targets = (paths && paths.length > 0)
       ? paths
       : getLogger().getPendingManual().map(function(p) {
@@ -233,10 +270,12 @@ function uiRetryPending(paths) {
 /**
  * Kick off an archive session via a one-shot 60 s trigger so the call
  * returns immediately (UI timeout is short).
+ * @param {string} token CSRF token from the SPA meta tag.
  * @return {{started: boolean, reason: (string|undefined)}}
  */
-function uiRunNow() {
+function uiRunNow(token) {
   assertAuthorized_();
+  _requireCsrf_(token);
   const status = getConfig(PROP_KEYS.ARCHIVE_STATUS);
   if (status === ARCHIVE_STATUS.ACTIVE) {
     return { started: false, reason: 'session already active' };

@@ -420,4 +420,77 @@ function registerTests_() {
       props.setProperty(PROP_KEYS.BANDWIDTH_LIMIT_MB, '500');
     }
   });
+
+  // ---------- CSRF ----------
+
+  test_('generateCsrfToken produces well-formed token', function() {
+    var t = generateCsrfToken();
+    assertTrue_(/^\d+\.[0-9a-f]{64}$/.test(t), 'shape mismatch: ' + t);
+  });
+
+  test_('verifyCsrfToken accepts a fresh token', function() {
+    var t = generateCsrfToken();
+    assertTrue_(verifyCsrfToken(t) === true);
+  });
+
+  test_('verifyCsrfToken rejects malformed tokens', function() {
+    var bad = [
+      '', '.', 'abc', '123', '123.', '.abc',
+      '123.tooshort',
+      // wrong hex length (63 chars)
+      '123.' + new Array(64).join('a'),
+      // non-hex chars
+      '123.' + new Array(65).join('z'),
+      null, undefined, 42,
+    ];
+    for (var i = 0; i < bad.length; i++) {
+      var val = bad[i];
+      assertThrows_(function() { verifyCsrfToken(val); },
+          'expected reject for ' + JSON.stringify(val));
+    }
+  });
+
+  test_('verifyCsrfToken rejects an expired token', function() {
+    // Build a token whose timestamp is 2 hours ago using the same
+    // internal signing path generateCsrfToken() uses.
+    var ts = Date.now() - 2 * 60 * 60 * 1000;
+    var email = _csrfActor_();
+    var salt = _getOrCreateCsrfSalt_();
+    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var expired = ts + '.' + bytesToHex_(mac);
+    assertThrows_(function() { verifyCsrfToken(expired); },
+        'expired token must fail');
+  });
+
+  test_('verifyCsrfToken rejects a token from too far in the future', function() {
+    // 10 minutes ahead — beyond the 5-minute skew tolerance.
+    var ts = Date.now() + 10 * 60 * 1000;
+    var email = _csrfActor_();
+    var salt = _getOrCreateCsrfSalt_();
+    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var future = ts + '.' + bytesToHex_(mac);
+    assertThrows_(function() { verifyCsrfToken(future); },
+        'far-future token must fail');
+  });
+
+  test_('verifyCsrfToken tolerates small clock skew', function() {
+    // 1 minute ahead — well inside the 5-minute skew window.
+    var ts = Date.now() + 60 * 1000;
+    var email = _csrfActor_();
+    var salt = _getOrCreateCsrfSalt_();
+    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var skewed = ts + '.' + bytesToHex_(mac);
+    assertTrue_(verifyCsrfToken(skewed) === true);
+  });
+
+  test_('verifyCsrfToken rejects a token with a tampered signature', function() {
+    var t = generateCsrfToken();
+    // Flip the first hex character of the MAC.
+    var dot = t.indexOf('.');
+    var flipped = t.substring(0, dot + 1) +
+        (t.charAt(dot + 1) === '0' ? '1' : '0') +
+        t.substring(dot + 2);
+    assertThrows_(function() { verifyCsrfToken(flipped); },
+        'tampered signature must fail MAC check');
+  });
 }

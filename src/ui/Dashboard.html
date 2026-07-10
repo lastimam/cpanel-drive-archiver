@@ -148,7 +148,7 @@ function refreshDashboard() {
 function runNow() {
   if (!confirm('سيبدأ تشغيل أرشفة يدوية الآن. متابعة؟')) return;
   showSnackbar('⏳ جارٍ البدء...');
-  gsRun('uiRunNow').then(function(r) {
+  gsRunGuarded('uiRunNow').then(function(r) {
     if (r.started) {
       showSnackbar('✅ بدأ التشغيل', 'success');
     } else {

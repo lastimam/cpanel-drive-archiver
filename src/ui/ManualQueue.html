@@ -94,7 +94,7 @@ function retrySelected() {
   }
   if (!confirm('إعادة محاولة ' + paths.length + ' ملف؟')) return;
   showSnackbar('⏳ جارٍ إعادة الجدولة...');
-  gsRun('uiRetryPending', paths).then(function(r) {
+  gsRunGuarded('uiRetryPending', paths).then(function(r) {
     showSnackbar('✅ أُعيد جدولة ' + (r.queued || 0) + ' ملف', 'success');
     refreshQueue();
   }).catch(function(e) {
@@ -105,7 +105,7 @@ function retrySelected() {
 function retryAll() {
   if (!confirm('إعادة محاولة كل الملفات الفاشلة؟')) return;
   showSnackbar('⏳ جارٍ إعادة الجدولة...');
-  gsRun('uiRetryPending', []).then(function(r) {
+  gsRunGuarded('uiRetryPending', []).then(function(r) {
     showSnackbar('✅ أُعيد جدولة ' + (r.queued || 0) + ' ملف', 'success');
     refreshQueue();
   }).catch(function(e) {

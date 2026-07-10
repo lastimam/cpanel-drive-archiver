@@ -220,7 +220,7 @@ function saveAllSettings() {
       updates[key] = el.value;
     }
   });
-  gsRun('uiSaveConfig', updates).then(function(res) {
+  gsRunGuarded('uiSaveConfig', updates).then(function(res) {
     if (res.ok) {
       showSnackbar('✅ حُفظت الإعدادات', 'success');
     } else {
@@ -234,7 +234,7 @@ function saveAllSettings() {
 
 function testConnection() {
   showSnackbar('⏳ جارٍ اختبار الاتصال...');
-  gsRun('uiTestConnection').then(function(r) {
+  gsRunGuarded('uiTestConnection').then(function(r) {
     if (r.ok) {
       showSnackbar('✅ الاتصال ناجح — ' + (r.rootCount || 0) +
                    ' مدخل في الجذر', 'success');
@@ -248,7 +248,7 @@ function testConnection() {
 
 function testEmail() {
   showSnackbar('⏳ جارٍ إرسال بريد اختباري...');
-  gsRun('uiTestEmail').then(function(r) {
+  gsRunGuarded('uiTestEmail').then(function(r) {
     if (r.sent) showSnackbar('✅ أُرسل — تحقق من صندوق الوارد',
                               'success');
     else showSnackbar('❌ ' + (r.error || 'فشل'), 'error');
@@ -258,7 +258,7 @@ function testEmail() {
 }
 
 function installSchedule() {
-  gsRun('uiInstallSchedule').then(function() {
+  gsRunGuarded('uiInstallSchedule').then(function() {
     showSnackbar('✅ تم تفعيل الجدولة', 'success');
     listTriggers();
   }).catch(function(e) {
@@ -270,7 +270,7 @@ function removeAllTriggers() {
   if (!confirm('سيتم حذف جميع المُشغّلات (بما فيها التقارير). متابعة؟')) {
     return;
   }
-  gsRun('uiRemoveAllTriggers').then(function() {
+  gsRunGuarded('uiRemoveAllTriggers').then(function() {
     showSnackbar('✅ حُذفت المُشغّلات', 'success');
     listTriggers();
   }).catch(function(e) {

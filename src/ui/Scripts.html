@@ -2,9 +2,38 @@
 /* =============================================================
  * Promise wrapper around google.script.run.
  * Usage:  await gsRun('uiGetConfig');
+ *
+ * gsRun() is for read-only handlers. State-changing handlers must go
+ * through gsRunGuarded() which prepends the CSRF token minted in
+ * doGet() (embedded in <meta name="csrf-token">).
  * ============================================================= */
 function gsRun(fnName /* , ...args */) {
   var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve, reject) {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(function(err) {
+        reject(new Error(err && err.message ? err.message : String(err)));
+      })
+      [fnName].apply(null, args);
+  });
+}
+
+/* Read the CSRF token minted in doGet(). Returns '' if the meta tag is
+ * missing so the server-side verify step surfaces a clean error rather
+ * than a JS TypeError. */
+function _getCsrfToken() {
+  var meta = document.querySelector('meta[name="csrf-token"]');
+  return meta ? String(meta.getAttribute('content') || '') : '';
+}
+
+/* CSRF-guarded variant of gsRun. Prepends the current token as the
+ * first argument to fnName. Server-side handlers with an underscore
+ * prefixed _requireCsrf_() call reject any request whose token is
+ * missing, malformed, expired, or forged. */
+function gsRunGuarded(fnName /* , ...args */) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  args.unshift(_getCsrfToken());
   return new Promise(function(resolve, reject) {
     google.script.run
       .withSuccessHandler(resolve)
