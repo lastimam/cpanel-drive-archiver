@@ -1,0 +1,166 @@
+﻿# =============================================================================
+# .claspignore for cPanel-to-Google-Drive Archiver
+# =============================================================================
+
+# 🔐 Security
+.clasp.json
+.clasprc.json
+credentials.json
+credentials.*.json
+client_secret*.json
+service-account*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+api-keys.json
+secrets.json
+secrets/
+.secrets
+master.key
+encryption.key
+
+# 🌍 Environment
+.env
+.env.*
+*.env
+
+# 📦 Node.js
+node_modules/**
+.npm/**
+npm-debug.log*
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# 📚 Documentation
+README.md
+CHANGELOG.md
+CLAUDE.md
+ARCHITECTURE.md
+AUDIT_REPORT.md
+LICENSE
+LICENSE.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+cpanel_gdrive_archiver_prompt.md
+docs/**
+*.md
+
+# 🧪 Testing
+tests/**
+test/**
+*.test.js
+*.spec.js
+coverage/**
+.nyc_output/**
+
+# 🖥️ IDE
+.vscode/**
+.idea/**
+.history/**
+*.code-workspace
+*.iml
+*.swp
+*.swo
+
+# 🖥️ OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+.Trashes
+._*
+
+# 📝 Logs
+logs/**
+*.log
+debug/**
+
+# 🔧 Build & Dev Tools
+dist/**
+build/**
+out/**
+.output/**
+.cache/**
+.parcel-cache/**
+tmp/**
+temp/**
+.tmp/**
+.eslintrc*
+.eslintignore
+.eslintcache
+.prettierrc*
+.prettierignore
+.prettiercache
+.stylelintrc*
+.stylelintcache
+.editorconfig
+.gitattributes
+tsconfig.json
+tsconfig.*.json
+jsconfig.json
+babel.config.*
+.babelrc*
+webpack.config.*
+rollup.config.*
+vite.config.*
+esbuild.config.*
+
+# 🐙 Git & GitHub
+.git/**
+.gitignore
+.gitattributes
+.gitmodules
+.github/**
+
+# 🔨 CI/CD
+.github/workflows/**
+.gitlab-ci.yml
+.travis.yml
+.circleci/**
+
+# 📁 Local Data
+downloads/**
+local-archive/**
+evicted-files/**
+manifest-local-*.json
+restore-backup/**
+test-uploads/**
+test-cpanel-mock/**
+sample-files/**
+local-index-cache/**
+bloom-filter-dev.bin
+hot-cache-dev.json
+_legacy_backup/**
+
+# 📄 Project Setup
+package.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.nvmrc
+.node-version
+
+# 🎨 Design Files
+*.psd
+*.ai
+*.sketch
+*.fig
+*.xd
+assets/source/**
+design/**
+
+# 📌 Notes
+NOTES.private.md
+TODO.private.md
+scratch.js
+scratchpad/**
+personal/**
+private/**
+
+# 🚫 PHP Bridge (uploaded to cPanel separately)
+bridge/**
+docs/PHP_BRIDGE.php
+php-bridge/**
