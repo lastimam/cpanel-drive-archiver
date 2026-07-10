@@ -431,7 +431,10 @@ function formatBytes(bytes) {
   let i = -1;
   let n = bytes;
   do { n /= 1024; i++; } while (n >= 1024 && i < units.length - 1);
-  return n.toFixed(2) + ' ' + units[i];
+  // 1 decimal place — matches the client-side formatBytes in
+  // ui/Scripts.html so the same value renders identically in daily
+  // digest emails and the SPA dashboard.
+  return n.toFixed(1) + ' ' + units[i];
 }
 
 /**
