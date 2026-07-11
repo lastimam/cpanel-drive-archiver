@@ -44,16 +44,24 @@ const CSRF_CLOCK_SKEW_MS = 5 * 60 * 1000;
 // ============================================================
 
 /**
- * Mint a fresh CSRF token bound to the current effective user. Called
- * from doGet() at page-load time and embedded in the SPA as a <meta>
- * tag so the client can echo it back with every state-changing call.
+ * Mint a fresh CSRF token. Called from doGet() at page-load time and
+ * embedded in the SPA as a <meta> tag so the client can echo it back
+ * with every state-changing call.
+ *
+ * Under access=MYSELF the Apps Script HTTP layer authenticates the
+ * caller before we ever run, so binding the token to a user identity
+ * is redundant. It's also actively harmful: Session.getEffectiveUser()
+ * .getEmail() can legitimately return "" inside google.script.run
+ * handlers while returning the real address inside doGet(), producing
+ * a spurious signature mismatch on every request. The token is now
+ * scoped only to the salt + timestamp — the salt is the actual secret.
+ *
  * @return {string} `<ts>.<64-hex>`
  */
 function generateCsrfToken() {
-  const email = _csrfActor_();
   const ts = Date.now();
   const salt = _getOrCreateCsrfSalt_();
-  const mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+  const mac = hmacSha256_(salt, _csrfMessage_(ts));
   return ts + '.' + bytesToHex_(mac);
 }
 
@@ -92,9 +100,8 @@ function verifyCsrfToken(token) {
     throw new Error('csrf: token from the future');
   }
 
-  const email = _csrfActor_();
   const salt = _getOrCreateCsrfSalt_();
-  const expected = hmacSha256_(salt, _csrfMessage_(ts, email));
+  const expected = hmacSha256_(salt, _csrfMessage_(ts));
   const actual = _hexToBytes_(macHex);
   if (!constantTimeEquals_(actual, expected)) {
     throw new Error('csrf: signature mismatch');
@@ -107,31 +114,15 @@ function verifyCsrfToken(token) {
 // ============================================================
 
 /**
- * Assemble the bytes that get MAC'd — a canonical string of the form
- * `<ts>|<email>` in UTF-8. The pipe is chosen because email addresses
- * cannot contain it, so the concatenation is unambiguous.
+ * Assemble the bytes that get MAC'd — the timestamp as a UTF-8 string.
+ * Kept as its own helper so a future rebind (e.g. adding a per-session
+ * nonce for multi-user deployments) only needs to touch this function.
  * @param {number} ts
- * @param {string} email
  * @return {!Array<number>}
  * @private
  */
-function _csrfMessage_(ts, email) {
-  return Utilities.newBlob(ts + '|' + email).getBytes();
-}
-
-/**
- * Resolve the invoking user's email, or a stable placeholder if Session
- * is unavailable (should not happen inside a MYSELF Web App, but keeps
- * the code path defined for offline unit tests).
- * @return {string}
- * @private
- */
-function _csrfActor_() {
-  try {
-    return Session.getEffectiveUser().getEmail() || 'anonymous';
-  } catch (e) {
-    return 'anonymous';
-  }
+function _csrfMessage_(ts) {
+  return Utilities.newBlob(String(ts)).getBytes();
 }
 
 /**

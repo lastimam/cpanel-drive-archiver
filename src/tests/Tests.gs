@@ -454,9 +454,8 @@ function registerTests_() {
     // Build a token whose timestamp is 2 hours ago using the same
     // internal signing path generateCsrfToken() uses.
     var ts = Date.now() - 2 * 60 * 60 * 1000;
-    var email = _csrfActor_();
     var salt = _getOrCreateCsrfSalt_();
-    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var mac = hmacSha256_(salt, _csrfMessage_(ts));
     var expired = ts + '.' + bytesToHex_(mac);
     assertThrows_(function() { verifyCsrfToken(expired); },
         'expired token must fail');
@@ -465,9 +464,8 @@ function registerTests_() {
   test_('verifyCsrfToken rejects a token from too far in the future', function() {
     // 10 minutes ahead — beyond the 5-minute skew tolerance.
     var ts = Date.now() + 10 * 60 * 1000;
-    var email = _csrfActor_();
     var salt = _getOrCreateCsrfSalt_();
-    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var mac = hmacSha256_(salt, _csrfMessage_(ts));
     var future = ts + '.' + bytesToHex_(mac);
     assertThrows_(function() { verifyCsrfToken(future); },
         'far-future token must fail');
@@ -476,9 +474,8 @@ function registerTests_() {
   test_('verifyCsrfToken tolerates small clock skew', function() {
     // 1 minute ahead — well inside the 5-minute skew window.
     var ts = Date.now() + 60 * 1000;
-    var email = _csrfActor_();
     var salt = _getOrCreateCsrfSalt_();
-    var mac = hmacSha256_(salt, _csrfMessage_(ts, email));
+    var mac = hmacSha256_(salt, _csrfMessage_(ts));
     var skewed = ts + '.' + bytesToHex_(mac);
     assertTrue_(verifyCsrfToken(skewed) === true);
   });
