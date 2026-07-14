@@ -346,12 +346,23 @@ class DriveArchiver {
       const r = UrlFetchApp.fetch(url, full);
       const code = r.getResponseCode();
       if (code >= 200 && code < 300) return r;
-      if (code === 404) throw new Error('HTTP 404 (no retry)');
-      if (code === 401 || code === 403) {
-        throw new Error('HTTP ' + code + ' (no retry) — ' +
-            r.getContentText().substring(0, 200));
+      // Include URL + method + body in every error so the pending-manual
+      // queue and Stackdriver logs point at the exact request that
+      // failed. The 2026-07-11 circuit-breaker incident was invisible
+      // in the log because the 404 branch used to strip both — the
+      // message was just "HTTP 404 (no retry)" with no way to tell
+      // which folder or query triggered it. Keep that from recurring.
+      const shortUrl = String(url).replace(/^https?:\/\/[^/]+/, '');
+      const method = ((opts && opts.method) || 'get').toUpperCase();
+      const ctx = method + ' ' + shortUrl + ' — ' +
+          r.getContentText().substring(0, 200);
+      if (code === 404) {
+        throw new Error('HTTP 404 (no retry) — ' + ctx);
       }
-      throw new Error('HTTP ' + code);
+      if (code === 401 || code === 403) {
+        throw new Error('HTTP ' + code + ' (no retry) — ' + ctx);
+      }
+      throw new Error('HTTP ' + code + ' — ' + ctx);
     }, {
       maxRetries: 3,
       shouldRetry: (e) => !/no retry/.test(String(e)),
